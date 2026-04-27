@@ -483,13 +483,39 @@ class LicenceListView extends StatelessWidget {
                         fontSize: 12,
                       ),
                     ),
-                  Text(
-                    licence.active ? 'État: Active' : 'État: Non activée',
-                    style: TextStyle(
-                      color: licence.active ? Colors.green : Colors.orange,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        licence.active ? 'État: Active' : 'État: Non activée',
+                        style: TextStyle(
+                          color: licence.active ? Colors.green : Colors.orange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Transform.scale(
+                        scale: 0.8,
+                        child: Switch(
+                          value: licence.active,
+                          onChanged: (val) async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await neon.toggleLicenceStatus(
+                              licence.id!,
+                              licence.active,
+                            );
+                            if (neon.error != null && context.mounted) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(neon.error!),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

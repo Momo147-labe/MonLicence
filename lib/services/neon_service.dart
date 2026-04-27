@@ -59,8 +59,8 @@ class NeonService extends ChangeNotifier {
 
       if (isAuthenticated) await refreshAll();
     } catch (e) {
-      _error = "Erreur de connexion : $e";
-      debugPrint(_error);
+      _error = _formatError(e);
+      debugPrint("Erreur init: $e");
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -93,7 +93,7 @@ class NeonService extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _error = _formatError(e);
       return false;
     } finally {
       _isAuthLoading = false;
@@ -109,7 +109,7 @@ class NeonService extends ChangeNotifier {
         parameters: {'newPassword': newPassword, 'id': _currentUser!.id},
       );
     } catch (e) {
-      _error = e.toString();
+      _error = _formatError(e);
       notifyListeners();
     }
   }
@@ -140,7 +140,7 @@ class NeonService extends ChangeNotifier {
           .toList();
       notifyListeners();
     } catch (e) {
-      _error = "Erreur de chargement : $e";
+      _error = _formatError(e);
       notifyListeners();
     }
   }
@@ -165,7 +165,7 @@ class NeonService extends ChangeNotifier {
       );
       await refreshAll();
     } catch (e) {
-      _error = "Erreur lors de la création de la licence : $e";
+      _error = _formatError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -185,7 +185,34 @@ class NeonService extends ChangeNotifier {
       );
       await refreshAll();
     } catch (e) {
-      _error = "Erreur lors de la suppression de la licence : $e";
+      _error = _formatError(e);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleLicenceStatus(int id, bool currentStatus) async {
+    if (_connection == null) return;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final newStatus = !currentStatus;
+      await _connection!.execute(
+        Sql.named(
+          'UPDATE licence SET active = @active, activated_at = @activatedAt WHERE id = @id',
+        ),
+        parameters: {
+          'id': id,
+          'active': newStatus,
+          'activatedAt': newStatus ? DateTime.now() : null,
+        },
+      );
+      await refreshAll();
+    } catch (e) {
+      _error = _formatError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -205,8 +232,7 @@ class NeonService extends ChangeNotifier {
       );
       await refreshAll();
     } catch (e) {
-      _error =
-          "Impossible de supprimer l'école : elle possède probablement des licences actives.";
+      _error = _formatError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -217,5 +243,36 @@ class NeonService extends ChangeNotifier {
   void dispose() {
     _connection?.close();
     super.dispose();
+  }
+
+  String _formatError(dynamic e) {
+    if (e is ServerException) {
+      final code = e.code;
+      switch (code) {
+        case '23505':
+          return "Cette information existe déjà (doublon détecté).";
+        case '23503':
+          return "Impossible de supprimer cet élément car il est lié à d'autres données.";
+        case '08001':
+        case '08006':
+        case '08003':
+        case '08004':
+        case '08P01':
+          return "Problème de connexion au serveur de base de données.";
+        case '28P01':
+          return "Authentification échouée sur le serveur.";
+        case '42P01':
+          return "Erreur système : Table introuvable.";
+        default:
+          return "Erreur serveur ($code) : ${e.message}";
+      }
+    }
+    final errorStr = e.toString();
+    if (errorStr.contains('SocketException') ||
+        errorStr.contains('Connection failed') ||
+        errorStr.contains('TimeoutException')) {
+      return "Impossible de contacter le serveur. Vérifiez votre connexion internet.";
+    }
+    return "Une erreur inattendue est survenue.";
   }
 }
